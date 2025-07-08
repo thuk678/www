@@ -6,208 +6,215 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
---// State
+-- State
 local floatSpeed = 10
 local tweenSpeed = 16
+local floatHeight = 6
+local doubleJumpEnabled = false
+local jumpCount = 0
+local maxJumps = 2
+local lastJumpTime = 0
+local jumpCooldown = 0.2
 
-local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-screenGui.Name = "FloatTweenGui"
-screenGui.ResetOnSpawn = false
+-- GUI
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "FloatGui"
+gui.ResetOnSpawn = false
 
---// Main Frame
-local frame = Instance.new("Frame", screenGui)
-frame.Size = UDim2.new(0, 520, 0, 360)
-frame.Position = UDim2.new(0.5, -260, 0.5, -180)
-frame.BackgroundColor3 = Color3.fromRGB(35, 40, 50)
-frame.BorderSizePixel = 0
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 500, 0, 360)
+frame.Position = UDim2.new(0.5, -250, 0.5, -180)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 frame.Active = true
 frame.Draggable = true
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 24)
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 
---// Title
-local titleBar = Instance.new("Frame", frame)
-titleBar.Size = UDim2.new(1, 0, 0, 44)
-titleBar.BackgroundColor3 = Color3.fromRGB(28, 32, 42)
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 24)
-
-local titleLabel = Instance.new("TextLabel", titleBar)
-titleLabel.Size = UDim2.new(1, -80, 1, 0)
-titleLabel.Position = UDim2.new(0, 20, 0, 0)
+-- Title
+local titleLabel = Instance.new("TextLabel", frame)
+titleLabel.Size = UDim2.new(1, -80, 0, 40)
+titleLabel.Position = UDim2.new(0, 10, 0, 10)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "KirbulaX - Float & Tween"
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextColor3 = Color3.fromRGB(210, 230, 255)
-titleLabel.TextSize = 22
+titleLabel.Text = "KirbulaX"
+titleLabel.Font = Enum.Font.Code
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.TextSize = 20
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-local exit = Instance.new("TextButton", titleBar)
-exit.Size = UDim2.new(0, 44, 0, 44)
-exit.Position = UDim2.new(1, -50, 0, 0)
-exit.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-exit.Text = "✕"
-exit.TextColor3 = Color3.new(1, 1, 1)
-exit.Font = Enum.Font.GothamBlack
-exit.TextSize = 30
-exit.AutoButtonColor = false
-Instance.new("UICorner", exit).CornerRadius = UDim.new(0, 24)
-exit.MouseEnter:Connect(function()
-	exit.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
+-- Exit Button (Upper-right corner)
+local exitBtn = Instance.new("TextButton", frame)
+exitBtn.Size = UDim2.new(0, 40, 0, 40)
+exitBtn.Position = UDim2.new(1, -50, 0, 10)
+exitBtn.Text = "X"
+exitBtn.TextColor3 = Color3.new(1, 1, 1)
+exitBtn.Font = Enum.Font.Code
+exitBtn.TextSize = 18
+exitBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+Instance.new("UICorner", exitBtn).CornerRadius = UDim.new(0, 10)
+exitBtn.MouseButton1Click:Connect(function()
+	gui:Destroy()
 end)
-exit.MouseLeave:Connect(function()
-	exit.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+-- Exit button hover animation
+exitBtn.MouseEnter:Connect(function()
+	TweenService:Create(exitBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 44, 0, 44), BackgroundColor3 = Color3.fromRGB(255, 80, 80)}):Play()
 end)
-exit.MouseButton1Click:Connect(function()
-	screenGui:Destroy()
+exitBtn.MouseLeave:Connect(function()
+	TweenService:Create(exitBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 40, 0, 40), BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
 end)
 
---// Tabs Container
-local tabFrame = Instance.new("Frame", frame)
-tabFrame.Position = UDim2.new(0, 16, 0, 56)
-tabFrame.Size = UDim2.new(1, -32, 0, 44)
-tabFrame.BackgroundTransparency = 1
+-- Tabs (Adjusted to avoid exit button)
+local tabBar = Instance.new("Frame", frame)
+tabBar.Size = UDim2.new(1, -20, 0, 40)
+tabBar.Position = UDim2.new(0, 10, 0, 60)
+tabBar.BackgroundTransparency = 1
 
-local function createTab(name, order)
-	local tab = Instance.new("TextButton", tabFrame)
-	tab.Size = UDim2.new(0, 150, 1, 0)
-	tab.Position = UDim2.new(0, (order - 1) * 160, 0, 0)
-	tab.BackgroundColor3 = Color3.fromRGB(50, 55, 75)
-	tab.Text = name
-	tab.Font = Enum.Font.GothamBold
-	tab.TextColor3 = Color3.fromRGB(220, 220, 255)
-	tab.TextSize = 20
-	tab.AutoButtonColor = false
-	Instance.new("UICorner", tab).CornerRadius = UDim.new(0, 14)
+local function createTab(text, x)
+	local tab = Instance.new("TextButton", tabBar)
+	tab.Size = UDim2.new(0, 240, 0, 40)
+	tab.Position = UDim2.new(0, x, 0, 0)
+	tab.Text = text
+	tab.Font = Enum.Font.Code
+	tab.TextSize = 16
+	tab.TextColor3 = Color3.new(1, 1, 1)
+	tab.BackgroundColor3 = Color3.fromRGB(50, 60, 80)
+	Instance.new("UICorner", tab).CornerRadius = UDim.new(0, 10)
+	-- Tab hover animation
 	tab.MouseEnter:Connect(function()
-		tab.BackgroundColor3 = Color3.fromRGB(70, 80, 110)
+		if tab.BackgroundColor3 ~= Color3.fromRGB(80, 90, 110) then
+			TweenService:Create(tab, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(70, 80, 100)}):Play()
+		end
 	end)
 	tab.MouseLeave:Connect(function()
-		if tab.BackgroundColor3 ~= Color3.fromRGB(90, 110, 160) then
-			tab.BackgroundColor3 = Color3.fromRGB(50, 55, 75)
+		if tab.BackgroundColor3 ~= Color3.fromRGB(80, 90, 110) then
+			TweenService:Create(tab, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 60, 80)}):Play()
 		end
 	end)
 	return tab
 end
 
-local mainTab = createTab("Main", 1)
-local customTab = createTab("Customization", 2)
+local mainTab = createTab("Main", 0)
+local customTab = createTab("Customization", 250)
 
-local function setActiveTab(selectedTab)
-	for _, tab in pairs(tabFrame:GetChildren()) do
-		if tab:IsA("TextButton") then
-			if tab == selectedTab then
-				tab.BackgroundColor3 = Color3.fromRGB(90, 110, 160)
-			else
-				tab.BackgroundColor3 = Color3.fromRGB(50, 55, 75)
-			end
-		end
-	end
-end
-setActiveTab(mainTab)
-
---// Containers (DECLARED BEFORE TAB BUTTON CONNECTIONS)
+-- Containers
 local mainContainer = Instance.new("Frame", frame)
-mainContainer.Position = UDim2.new(0, 16, 0, 110)
-mainContainer.Size = UDim2.new(1, -32, 1, -126)
+mainContainer.Position = UDim2.new(0, 10, 0, 110)
+mainContainer.Size = UDim2.new(1, -20, 1, -120)
 mainContainer.BackgroundTransparency = 1
 mainContainer.Visible = true
 
 local customContainer = Instance.new("Frame", frame)
-customContainer.Position = UDim2.new(0, 16, 0, 110)
-customContainer.Size = UDim2.new(1, -32, 1, -126)
+customContainer.Position = UDim2.new(0, 10, 0, 110)
+customContainer.Size = UDim2.new(1, -20, 1, -120)
 customContainer.BackgroundTransparency = 1
 customContainer.Visible = false
 
--- Now connect tab buttons
+-- Scrolling Frame for Customization
+local scrollFrame = Instance.new("ScrollingFrame", customContainer)
+scrollFrame.Size = UDim2.new(1, 0, 1, 0)
+scrollFrame.Position = UDim2.new(0, 0, 0, 0)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 10
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 200)
+scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+
+-- Tab switching with instant hide
+local function setActiveTab(selectedTab, container)
+	for _, tab in pairs(tabBar:GetChildren()) do
+		if tab:IsA("TextButton") then
+			TweenService:Create(tab, TweenInfo.new(0.2), {
+				BackgroundColor3 = (tab == selectedTab) and Color3.fromRGB(80, 90, 110) or Color3.fromRGB(50, 60, 80)
+			}):Play()
+		end
+	end
+	for _, cont in pairs({mainContainer, customContainer}) do
+		if cont == container then
+			cont.Visible = true
+			TweenService:Create(cont, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+		else
+			cont.Visible = false -- Instantly hide inactive container
+		end
+	end
+end
+
 mainTab.MouseButton1Click:Connect(function()
-	mainContainer.Visible = true
-	customContainer.Visible = false
-	setActiveTab(mainTab)
+	setActiveTab(mainTab, mainContainer)
 end)
-
 customTab.MouseButton1Click:Connect(function()
-	mainContainer.Visible = false
-	customContainer.Visible = true
-	setActiveTab(customTab)
+	setActiveTab(customTab, customContainer)
 end)
 
---// Layouts
-local function createButton(text, parent, color)
-	local btn = Instance.new("TextButton", parent)
-	btn.Size = UDim2.new(0, 220, 0, 48)
-	btn.BackgroundColor3 = color
-	btn.TextColor3 = Color3.new(1,1,1)
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 22
+-- Buttons
+local function makeBtn(text, y, color)
+	local btn = Instance.new("TextButton", mainContainer)
+	btn.Size = UDim2.new(0, 220, 0, 40)
+	btn.Position = UDim2.new(0, 20, 0, y)
 	btn.Text = text
-	btn.AutoButtonColor = false
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 16)
+	btn.Font = Enum.Font.Code
+	btn.TextSize = 16
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.BackgroundColor3 = color
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+	-- Button hover animation
 	btn.MouseEnter:Connect(function()
-		btn.BackgroundColor3 = color:Lerp(Color3.new(1,1,1), 0.15)
+		TweenService:Create(btn, TweenInfo.new(0.2), {Size = UDim2.new(0, 228, 0, 44), BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.1)}):Play()
 	end)
 	btn.MouseLeave:Connect(function()
-		btn.BackgroundColor3 = color
+		TweenService:Create(btn, TweenInfo.new(0.2), {Size = UDim2.new(0, 220, 0, 40), BackgroundColor3 = color}):Play()
 	end)
 	return btn
 end
 
-local mainLayout = Instance.new("UIGridLayout", mainContainer)
-mainLayout.CellSize = UDim2.new(0, 220, 0, 48)
-mainLayout.CellPadding = UDim2.new(0, 16, 0, 16)
+local floatBtn = makeBtn("Float: OFF", 10, Color3.fromRGB(60, 160, 60))
+local setBtn = makeBtn("Set Point", 60, Color3.fromRGB(200, 60, 60))
+local tweenBtn = makeBtn("Tween to Point", 110, Color3.fromRGB(60, 120, 180))
+local doubleJumpBtn = makeBtn("Double Jump: OFF", 160, Color3.fromRGB(120, 60, 180))
 
-local customLayout = Instance.new("UIGridLayout", customContainer)
-customLayout.CellSize = UDim2.new(0, 220, 0, 48)
-customLayout.CellPadding = UDim2.new(0, 16, 0, 16)
-
---// Main Buttons
-local floatBtn = createButton("Float: OFF", mainContainer, Color3.fromRGB(75, 150, 75))
-local setBtn = createButton("Set Point", mainContainer, Color3.fromRGB(190, 70, 70))
-local tweenBtn = createButton("Tween to Part", mainContainer, Color3.fromRGB(75, 150, 190))
-
---// Customization Controls
-local function createInput(labelText, defaultValue, parent, callback)
-	local container = Instance.new("Frame", parent)
-	container.Size = UDim2.new(0, 220, 0, 48)
-	container.BackgroundTransparency = 1
-
-	local label = Instance.new("TextLabel", container)
-	label.Size = UDim2.new(0, 120, 1, 0)
+-- Inputs
+local function makeInput(labelText, y, default, callback)
+	local label = Instance.new("TextLabel", scrollFrame)
+	label.Position = UDim2.new(0, 20, 0, y)
+	label.Size = UDim2.new(0, 180, 0, 40)
 	label.Text = labelText
-	label.Font = Enum.Font.GothamBold
-	label.TextSize = 20
-	label.TextColor3 = Color3.fromRGB(220, 220, 255)
+	label.Font = Enum.Font.Code
+	label.TextSize = 14
+	label.TextColor3 = Color3.new(1, 1, 1)
 	label.BackgroundTransparency = 1
-	label.TextXAlignment = Enum.TextXAlignment.Left
 
-	local box = Instance.new("TextBox", container)
-	box.Position = UDim2.new(0, 120, 0, 0)
-	box.Size = UDim2.new(0, 100, 1, 0)
-	box.Text = tostring(defaultValue)
-	box.Font = Enum.Font.GothamBold
-	box.TextSize = 20
-	box.TextColor3 = Color3.new(1,1,1)
-	box.BackgroundColor3 = Color3.fromRGB(55, 55, 90)
+	local box = Instance.new("TextBox", scrollFrame)
+	box.Position = UDim2.new(0, 210, 0, y)
+	box.Size = UDim2.new(0, 120, 0, 40)
+	box.Text = tostring(default)
+	box.Font = Enum.Font.Code
+	box.TextSize = 14
+	box.TextColor3 = Color3.new(1, 1, 1)
+	box.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
 	box.ClearTextOnFocus = false
-	box.TextStrokeTransparency = 0.7
-	box.PlaceholderText = "Enter number"
-	box.TextWrapped = false
-	box.AutoLocalize = false
-	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 14)
+	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+	-- Input hover animation
+	box.MouseEnter:Connect(function()
+		TweenService:Create(box, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80, 80, 110)}):Play()
+	end)
+	box.MouseLeave:Connect(function()
+		TweenService:Create(box, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}):Play()
+	end)
 
 	box.FocusLost:Connect(function()
 		local val = tonumber(box.Text)
 		if val and val > 0 then
 			callback(val)
 		else
-			box.Text = tostring(defaultValue)
+			box.Text = tostring(default)
 		end
 	end)
+	return box
 end
 
-createInput("Float Speed", floatSpeed, customContainer, function(v) floatSpeed = v end)
-createInput("Tween Speed", tweenSpeed, customContainer, function(v) tweenSpeed = v end)
+makeInput("Float Speed", 10, floatSpeed, function(v) floatSpeed = v end)
+makeInput("Float Height", 60, floatHeight, function(v) floatHeight = v end)
+makeInput("Tween Speed", 110, tweenSpeed, function(v) tweenSpeed = v end)
 
---// Functions
+-- Character Helpers
 local function getChar()
 	local char = player.Character
 	if not char then return nil, nil end
@@ -216,7 +223,46 @@ local function getChar()
 	return hum, root
 end
 
---// Float
+-- Double Jump System
+doubleJumpBtn.MouseButton1Click:Connect(function()
+	doubleJumpEnabled = not doubleJumpEnabled
+	doubleJumpBtn.Text = "Double Jump: " .. (doubleJumpEnabled and "ON" or "OFF")
+	jumpCount = 0
+end)
+
+UserInputService.JumpRequest:Connect(function()
+	local hum, root = getChar()
+	if not hum or not root or floatEnabled then return end
+	if doubleJumpEnabled then
+		local currentTime = tick()
+		if currentTime - lastJumpTime < jumpCooldown then return end
+		if jumpCount < maxJumps then
+			if hum.FloorMaterial == Enum.Material.Air then
+				jumpCount += 1
+				hum.JumpHeight = 7.2
+				hum:ChangeState(Enum.HumanoidStateType.Jumping)
+				lastJumpTime = currentTime
+			else
+				jumpCount = 1
+				hum.JumpHeight = 7.2
+				hum:ChangeState(Enum.HumanoidStateType.Jumping)
+				lastJumpTime = currentTime
+			end
+		end
+	end
+end)
+
+player.CharacterAdded:Connect(function(char)
+	local hum = char:WaitForChild("Humanoid")
+	jumpCount = 0
+	hum.StateChanged:Connect(function(oldState, newState)
+		if newState == Enum.HumanoidStateType.Landed then
+			jumpCount = 0
+		end
+	end)
+end)
+
+-- Float System
 local floatEnabled = false
 local floatConn = nil
 local bodyVel = nil
@@ -232,11 +278,9 @@ local function setFloat(state)
 		if floatConn then floatConn:Disconnect() end
 		bodyVel = root:FindFirstChild("FloatBodyVelocity") or Instance.new("BodyVelocity")
 		bodyVel.Name = "FloatBodyVelocity"
-		bodyVel.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- full 3D control
+		bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 		bodyVel.Velocity = Vector3.zero
 		bodyVel.Parent = root
-
-		local hoverHeight = 7
 
 		floatConn = RunService.Heartbeat:Connect(function()
 			local hum, r = getChar()
@@ -246,29 +290,24 @@ local function setFloat(state)
 			rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 			local ray = workspace:Raycast(r.Position, Vector3.new(0, -20, 0), rayParams)
 			if ray then
-				local goalY = ray.Position.Y + hoverHeight
+				local goalY = ray.Position.Y + floatHeight
 				local vY = (goalY - r.Position.Y) * floatSpeed
 
-				-- Movement input
-				local moveVector = Vector3.new(0,0,0)
-				if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-					moveVector = moveVector + Vector3.new(0,0,-1)
-				end
-				if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-					moveVector = moveVector + Vector3.new(0,0,1)
-				end
-				if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-					moveVector = moveVector + Vector3.new(-1,0,0)
-				end
-				if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-					moveVector = moveVector + Vector3.new(1,0,0)
+				local moveVector = Vector3.zero
+				if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+					moveVector = hum.MoveDirection
+				else
+					if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector += Vector3.new(0, 0, -1) end
+					if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector += Vector3.new(0, 0, 1) end
+					if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector += Vector3.new(-1, 0, 0) end
+					if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector += Vector3.new(1, 0, 0) end
 				end
 
 				local moveVel
 				if moveVector.Magnitude > 0 then
 					moveVector = moveVector.Unit
-					local camCF = workspace.CurrentCamera.CFrame
-					local horMove = (camCF.RightVector * moveVector.X - camCF.LookVector * moveVector.Z) * floatSpeed * 5
+					local camCF = camera.CFrame
+					local horMove = (camCF.RightVector * moveVector.X + camCF.LookVector * -moveVector.Z).Unit * floatSpeed * 5
 					moveVel = Vector3.new(horMove.X, vY, horMove.Z)
 				else
 					moveVel = Vector3.new(0, vY, 0)
@@ -292,7 +331,7 @@ floatBtn.MouseButton1Click:Connect(function()
 	setFloat(not floatEnabled)
 end)
 
---// Set Point
+-- Set Point
 local setPart = nil
 setBtn.MouseButton1Click:Connect(function()
 	local _, root = getChar()
@@ -304,52 +343,36 @@ setBtn.MouseButton1Click:Connect(function()
 	p.Anchored = true
 	p.CanCollide = false
 	p.Color = Color3.fromRGB(255, 0, 0)
-	p.Transparency = 0.5
+	p.Transparency = 0.4
 	p.Position = root.Position
 	p.Name = "SetPoint"
 	p.Parent = workspace
 	setPart = p
 end)
 
---// Tween (smooth)
+-- Tween System
 local tweening = false
-local function tweenToSetPoint()
+tweenBtn.MouseButton1Click:Connect(function()
 	if tweening or not setPart then return end
-	local humanoid, root = getChar()
-	if not humanoid or not root then return end
+	local _, root = getChar()
+	if not root then return end
 
-	local path = PathfindingService:CreatePath({
-		AgentRadius = 2,
-		AgentHeight = 5,
-		AgentCanJump = true,
-		AgentJumpHeight = 10,
-		AgentMaxSlope = 45
-	})
-
-	local destination = setPart.Position + Vector3.new(0, 7, 0)
-	path:ComputeAsync(root.Position, destination)
+	local path = PathfindingService:CreatePath()
+	path:ComputeAsync(root.Position, setPart.Position + Vector3.new(0, 5, 0))
 	if path.Status ~= Enum.PathStatus.Success then return end
 
-	local waypoints = path:GetWaypoints()
-	if #waypoints < 2 then return end
-
+	local points = path:GetWaypoints()
 	tweening = true
-
 	coroutine.wrap(function()
-		for i = 2, #waypoints do
-			local startPos = waypoints[i - 1].Position + Vector3.new(0, 7, 0)
-			local endPos = waypoints[i].Position + Vector3.new(0, 7, 0)
-			local dist = (endPos - startPos).Magnitude
-			local duration = dist / tweenSpeed
-
-			local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-			local goalCFrame = CFrame.new(endPos, endPos + (endPos - startPos).Unit)
-			local tween = TweenService:Create(root, tweenInfo, {CFrame = goalCFrame})
-			tween:Play()
-			tween.Completed:Wait()
+		for i = 2, #points do
+			local nextPos = points[i].Position + Vector3.new(0, 5, 0)
+			local dist = (nextPos - root.Position).Magnitude
+			local t = TweenService:Create(root, TweenInfo.new(dist / tweenSpeed, Enum.EasingStyle.Linear), {
+				CFrame = CFrame.new(nextPos)
+			})
+			t:Play()
+			t.Completed:Wait()
 		end
 		tweening = false
 	end)()
-end
-
-tweenBtn.MouseButton1Click:Connect(tweenToSetPoint)
+end)
