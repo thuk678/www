@@ -1,0 +1,597 @@
+--// Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local PathfindingService = game:GetService("PathfindingService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- State
+local floatSpeed = 10
+local floatHeight = 6
+local tweenSpeed = 16
+local doubleJumpEnabled = false
+local jumpCount = 0
+local maxJumps = 2
+local lastJumpTime = 0
+local jumpCooldown = 0.2
+local isMinimized = false
+local externalTweenEnabled = false
+
+-- GUI
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "FloatGui"
+gui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 500, 0, 360) -- Default Normal size
+frame.Position = UDim2.new(0, 10, 1, -370) -- Lower-left corner
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+frame.Active = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+-- External Tween Button
+local externalTweenBtn = Instance.new("TextButton", gui)
+externalTweenBtn.Size = UDim2.new(0, 50, 0, 50)
+externalTweenBtn.Position = UDim2.new(0.5, 0, 0.7, 0)
+externalTweenBtn.Text = "Tween"
+externalTweenBtn.Font = Enum.Font.Code
+externalTweenBtn.TextSize = 14
+externalTweenBtn.TextColor3 = Color3.new(1, 1, 1)
+externalTweenBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 180)
+externalTweenBtn.Visible = false
+Instance.new("UICorner", externalTweenBtn).CornerRadius = UDim.new(0, 10)
+externalTweenBtn.MouseEnter:Connect(function()
+	TweenService:Create(externalTweenBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 55, 0, 55), BackgroundColor3 = Color3.fromRGB(80, 150, 220)}):Play()
+end)
+externalTweenBtn.MouseLeave:Connect(function()
+	TweenService:Create(externalTweenBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 50, 0, 50), BackgroundColor3 = Color3.fromRGB(60, 120, 180)}):Play()
+end)
+
+-- Make GUI and external button draggable on all devices
+local dragging, dragInput, dragStart, startPos, draggedObject
+local function startDragging(input, obj)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		local pos = input.Position
+		local guiPos = obj.AbsolutePosition
+		local guiSize = obj.AbsoluteSize
+		if pos.X >= guiPos.X and pos.X <= guiPos.X + guiSize.X and pos.Y >= guiPos.Y and pos.Y <= guiPos.Y + guiSize.Y then
+			dragging = true
+			draggedObject = obj
+			dragStart = pos
+			startPos = obj.Position
+		end
+	end
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	startDragging(input, frame)
+	if externalTweenEnabled and externalTweenBtn.Visible then
+		startDragging(input, externalTweenBtn)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input, processed)
+	if processed or not dragging then return end
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		local delta = input.Position - dragStart
+		draggedObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input, processed)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+		draggedObject = nil
+	end
+end)
+
+-- Title
+local titleLabel = Instance.new("TextLabel", frame)
+titleLabel.Size = UDim2.new(1, -80, 0, 40)
+titleLabel.Position = UDim2.new(0, 10, 0, 10)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "KirbulaX"
+titleLabel.Font = Enum.Font.Code
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.TextSize = 20
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Exit Button
+local exitBtn = Instance.new("TextButton", frame)
+exitBtn.Size = UDim2.new(0, 40, 0, 40)
+exitBtn.Position = UDim2.new(1, -50, 0, 10)
+exitBtn.Text = "X"
+exitBtn.TextColor3 = Color3.new(1, 1, 1)
+exitBtn.Font = Enum.Font.Code
+exitBtn.TextSize = 18
+exitBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+Instance.new("UICorner", exitBtn).CornerRadius = UDim.new(0, 10)
+exitBtn.MouseButton1Click:Connect(function()
+	gui:Destroy()
+end)
+exitBtn.MouseEnter:Connect(function()
+	TweenService:Create(exitBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 44, 0, 44), BackgroundColor3 = Color3.fromRGB(255, 80, 80)}):Play()
+end)
+exitBtn.MouseLeave:Connect(function()
+	TweenService:Create(exitBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 40, 0, 40), BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
+end)
+
+-- Minimize Button
+local minimizeBtn = Instance.new("TextButton", frame)
+minimizeBtn.Size = UDim2.new(0, 40, 0, 40)
+minimizeBtn.Position = UDim2.new(1, -100, 0, 10)
+minimizeBtn.Text = "-"
+minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
+minimizeBtn.Font = Enum.Font.Code
+minimizeBtn.TextSize = 18
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 10)
+minimizeBtn.MouseEnter:Connect(function()
+	TweenService:Create(minimizeBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 44, 0, 44), BackgroundColor3 = Color3.fromRGB(80, 80, 255)}):Play()
+end)
+minimizeBtn.MouseLeave:Connect(function()
+	TweenService:Create(minimizeBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 40, 0, 40), BackgroundColor3 = Color3.fromRGB(50, 50, 200)}):Play()
+end)
+
+-- Tabs
+local tabBar = Instance.new("Frame", frame)
+tabBar.Size = UDim2.new(1, -20, 0, 40)
+tabBar.Position = UDim2.new(0, 10, 0, 60)
+tabBar.BackgroundTransparency = 1
+
+local function createTab(text, x)
+	local tab = Instance.new("TextButton", tabBar)
+	tab.Size = UDim2.new(0, 240, 0, 40)
+	tab.Position = UDim2.new(0, x, 0, 0)
+	tab.Text = text
+	tab.Font = Enum.Font.Code
+	tab.TextSize = 16
+	tab.TextColor3 = Color3.new(1, 1, 1)
+	tab.BackgroundColor3 = Color3.fromRGB(50, 60, 80)
+	Instance.new("UICorner", tab).CornerRadius = UDim.new(0, 10)
+	tab.MouseEnter:Connect(function()
+		if tab.BackgroundColor3 ~= Color3.fromRGB(80, 90, 110) then
+			TweenService:Create(tab, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(70, 80, 100)}):Play()
+		end
+	end)
+	tab.MouseLeave:Connect(function()
+		if tab.BackgroundColor3 ~= Color3.fromRGB(80, 90, 110) then
+			TweenService:Create(tab, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 60, 80)}):Play()
+		end
+	end)
+	return tab
+end
+
+local mainTab = createTab("Main", 0)
+local customTab = createTab("Customization", 250)
+
+-- Containers
+local mainContainer = Instance.new("Frame", frame)
+mainContainer.Position = UDim2.new(0, 10, 0, 110)
+mainContainer.Size = UDim2.new(1, -20, 1, -120)
+mainContainer.BackgroundTransparency = 1
+mainContainer.Visible = true
+
+local customContainer = Instance.new("Frame", frame)
+customContainer.Position = UDim2.new(0, 10, 0, 110)
+customContainer.Size = UDim2.new(1, -20, 1, -120)
+customContainer.BackgroundTransparency = 1
+customContainer.Visible = false
+
+-- Scrolling Frame for Customization
+local scrollFrame = Instance.new("ScrollingFrame", customContainer)
+scrollFrame.Size = UDim2.new(1, 0, 1, 0)
+scrollFrame.Position = UDim2.new(0, 0, 0, 0)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 10
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 350)
+scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+
+-- Tab switching
+local function setActiveTab(selectedTab, container)
+	for _, tab in pairs(tabBar:GetChildren()) do
+		if tab:IsA("TextButton") then
+			TweenService:Create(tab, TweenInfo.new(0.2), {
+				BackgroundColor3 = (tab == selectedTab) and Color3.fromRGB(80, 90, 110) or Color3.fromRGB(50, 60, 80)
+			}):Play()
+		end
+	end
+	for _, cont in pairs({mainContainer, customContainer}) do
+		if cont == container then
+			cont.Visible = true
+			TweenService:Create(cont, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+		else
+			cont.Visible = false
+		end
+	end
+end
+
+mainTab.MouseButton1Click:Connect(function()
+	setActiveTab(mainTab, mainContainer)
+end)
+customTab.MouseButton1Click:Connect(function()
+	setActiveTab(customTab, customContainer)
+end)
+
+-- Size Scaling Logic
+local currentSize = "Normal"
+local sizeScales = {
+	Small = 0.6,
+	Normal = 1,
+	Big = 1.4
+}
+local baseSizes = {
+	frame = {Small = UDim2.new(0, 300, 0, 240), Normal = UDim2.new(0, 500, 0, 360), Big = UDim2.new(0, 700, 0, 480)},
+	buttons = {Small = UDim2.new(0, 132, 0, 24), Normal = UDim2.new(0, 220, 0, 40), Big = UDim2.new(0, 308, 0, 56)},
+	tabs = {Small = UDim2.new(0, 144, 0, 24), Normal = UDim2.new(0, 240, 0, 40), Big = UDim2.new(0, 336, 0, 56)},
+	inputs = {Small = UDim2.new(0, 72, 0, 24), Normal = UDim2.new(0, 120, 0, 40), Big = UDim2.new(0, 168, 0, 56)},
+	labels = {Small = UDim2.new(0, 108, 0, 24), Normal = UDim2.new(0, 180, 0, 40), Big = UDim2.new(0, 252, 0, 56)},
+	exitBtn = {Small = UDim2.new(0, 24, 0, 24), Normal = UDim2.new(0, 40, 0, 40), Big = UDim2.new(0, 56, 0, 56)},
+	minimizeBtn = {Small = UDim2.new(0, 24, 0, 24), Normal = UDim2.new(0, 40, 0, 40), Big = UDim2.new(0, 56, 0, 56)},
+	title = {Small = 16, Normal = 20, Big = 28},
+	buttonText = {Small = 12, Normal = 16, Big = 22},
+	tabText = {Small = 12, Normal = 16, Big = 22},
+	inputText = {Small = 10, Normal = 14, Big = 18}
+}
+
+local function updateElementSizes()
+	local scale = sizeScales[currentSize]
+	local frameWidth = baseSizes.frame[currentSize].X.Offset
+	local buttonSpacing = (frameWidth - 20) / 2 -- Center two buttons horizontally with 20px padding
+	for _, btn in pairs(mainContainer:GetChildren()) do
+		if btn:IsA("TextButton") then
+			local yPos = btn.Position.Y.Offset
+			local btnIndex = ({floatBtn = 1, setBtn = 2, tweenBtn = 3, doubleJumpBtn = 4})[btn.Name]
+			local xPos = 20 + (btnIndex % 2 == 1 and 0 or buttonSpacing)
+			TweenService:Create(btn, TweenInfo.new(0.3), {Size = baseSizes.buttons[currentSize], Position = UDim2.new(0, xPos, 0, yPos)}):Play()
+			btn.TextSize = baseSizes.buttonText[currentSize]
+		end
+	end
+	for _, tab in pairs(tabBar:GetChildren()) do
+		if tab:IsA("TextButton") then
+			TweenService:Create(tab, TweenInfo.new(0.3), {Size = baseSizes.tabs[currentSize], Position = UDim2.new(0, tab.Position.X.Offset * scale, 0, 0)}):Play()
+			tab.TextSize = baseSizes.tabText[currentSize]
+		end
+	end
+	for _, child in pairs(scrollFrame:GetChildren()) do
+		if child:IsA("TextBox") then
+			TweenService:Create(child, TweenInfo.new(0.3), {Size = baseSizes.inputs[currentSize], Position = UDim2.new(0, 210 * scale, 0, child.Position.Y.Offset)}):Play()
+			child.TextSize = baseSizes.inputText[currentSize]
+		elseif child:IsA("TextLabel") then
+			TweenService:Create(child, TweenInfo.new(0.3), {Size = baseSizes.labels[currentSize]}):Play()
+			child.TextSize = baseSizes.inputText[currentSize]
+		elseif child:IsA("TextButton") then
+			TweenService:Create(child, TweenInfo.new(0.3), {Size = baseSizes.buttons[currentSize]}):Play()
+			child.TextSize = baseSizes.buttonText[currentSize]
+		end
+	end
+	TweenService:Create(exitBtn, TweenInfo.new(0.3), {Size = baseSizes.exitBtn[currentSize], Position = UDim2.new(1, -50 * scale, 0, 10)}):Play()
+	exitBtn.TextSize = baseSizes.tabText[currentSize]
+	TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = baseSizes.minimizeBtn[currentSize], Position = UDim2.new(1, -100 * scale, 0, 10)}):Play()
+	minimizeBtn.TextSize = baseSizes.tabText[currentSize]
+	titleLabel.TextSize = baseSizes.title[currentSize]
+end
+
+-- Size and External Button in Customization Tab
+local function makeSizeBtn(text, y, size)
+	local btn = Instance.new("TextButton", scrollFrame)
+	btn.Size = baseSizes.buttons[currentSize]
+	btn.Position = UDim2.new(0, 20, 0, y)
+	btn.Text = text
+	btn.Font = Enum.Font.Code
+	btn.TextSize = baseSizes.buttonText[currentSize]
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80, 80, 110)}):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}):Play()
+	end)
+	btn.MouseButton1Click:Connect(function()
+		if isMinimized then return end
+		currentSize = size
+		TweenService:Create(frame, TweenInfo.new(0.3), {Size = baseSizes.frame[currentSize]}):Play()
+		updateElementSizes()
+	end)
+	return btn
+end
+
+local externalBtnToggle = Instance.new("TextButton", scrollFrame)
+externalBtnToggle.Size = baseSizes.buttons[currentSize]
+externalBtnToggle.Position = UDim2.new(0, 20, 0, 310)
+externalBtnToggle.Text = "External Tween: OFF"
+externalBtnToggle.Font = Enum.Font.Code
+externalBtnToggle.TextSize = baseSizes.buttonText[currentSize]
+externalBtnToggle.TextColor3 = Color3.new(1, 1, 1)
+externalBtnToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+Instance.new("UICorner", externalBtnToggle).CornerRadius = UDim.new(0, 10)
+externalBtnToggle.MouseEnter:Connect(function()
+	TweenService:Create(externalBtnToggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80, 80, 110)}):Play()
+end)
+externalBtnToggle.MouseLeave:Connect(function()
+	TweenService:Create(externalBtnToggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}):Play()
+end)
+externalBtnToggle.MouseButton1Click:Connect(function()
+	externalTweenEnabled = not externalTweenEnabled
+	externalBtnToggle.Text = "External Tween: " .. (externalTweenEnabled and "ON" or "OFF")
+	externalTweenBtn.Visible = externalTweenEnabled
+	externalTweenBtn.Active = externalTweenEnabled
+end)
+
+makeSizeBtn("Small GUI", 160, "Small")
+makeSizeBtn("Normal GUI", 210, "Normal")
+makeSizeBtn("Big GUI", 260, "Big")
+
+-- Inputs
+local function makeInput(labelText, y, default, callback)
+	local label = Instance.new("TextLabel", scrollFrame)
+	label.Position = UDim2.new(0, 20, 0, y)
+	label.Size = baseSizes.labels[currentSize]
+	label.Text = labelText
+	label.Font = Enum.Font.Code
+	label.TextSize = baseSizes.inputText[currentSize]
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.BackgroundTransparency = 1
+
+	local box = Instance.new("TextBox", scrollFrame)
+	box.Position = UDim2.new(0, 210, 0, y)
+	box.Size = baseSizes.inputs[currentSize]
+	box.Text = tostring(default)
+	box.Font = Enum.Font.Code
+	box.TextSize = baseSizes.inputText[currentSize]
+	box.TextColor3 = Color3.new(1, 1, 1)
+	box.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+	box.ClearTextOnFocus = false
+	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+	box.MouseEnter:Connect(function()
+		TweenService:Create(box, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80, 80, 110)}):Play()
+	end)
+	box.MouseLeave:Connect(function()
+		TweenService:Create(box, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}):Play()
+	end)
+	box.FocusLost:Connect(function()
+		local val = tonumber(box.Text)
+		if val and val > 0 then
+			callback(val)
+		else
+			box.Text = tostring(default)
+		end
+	end)
+	return box
+end
+
+makeInput("Float Speed", 10, floatSpeed, function(v) floatSpeed = v end)
+makeInput("Float Height", 60, floatHeight, function(v) floatHeight = v end)
+makeInput("Tween Speed", 110, tweenSpeed, function(v) tweenSpeed = v end)
+
+-- Buttons
+local function makeBtn(text, y, color)
+	local btn = Instance.new("TextButton", mainContainer)
+	btn.Size = baseSizes.buttons[currentSize]
+	btn.Position = UDim2.new(0, 20, 0, y)
+	btn.Text = text
+	btn.Font = Enum.Font.Code
+	btn.TextSize = baseSizes.buttonText[currentSize]
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.BackgroundColor3 = color
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {Size = UDim2.new(0, baseSizes.buttons[currentSize].X.Offset + 8, 0, baseSizes.buttons[currentSize].Y.Offset + 4), BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.1)}):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {Size = baseSizes.buttons[currentSize], BackgroundColor3 = color}):Play()
+	end)
+	return btn
+end
+
+local floatBtn = makeBtn("Float: OFF", 10, Color3.fromRGB(60, 160, 60))
+local setBtn = makeBtn("Set Point", 60, Color3.fromRGB(200, 60, 60))
+local tweenBtn = makeBtn("Tween to Point", 110, Color3.fromRGB(60, 120, 180))
+local doubleJumpBtn = makeBtn("Double Jump: OFF", 160, Color3.fromRGB(120, 60, 180))
+
+-- Minimize Logic
+minimizeBtn.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	minimizeBtn.Text = isMinimized and "+" or "-"
+	if isMinimized then
+		TweenService:Create(frame, TweenInfo.new(0.3), {Size = UDim2.new(0, 50, 0, 50)}):Play()
+		for _, child in pairs(frame:GetChildren()) do
+			if child ~= minimizeBtn then
+				child.Visible = false
+			end
+		end
+		minimizeBtn.Position = UDim2.new(0, 5, 0, 5)
+		TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = UDim2.new(0, 40, 0, 40)}):Play()
+		if externalTweenEnabled then
+			externalTweenBtn.Visible = false
+			externalTweenBtn.Active = false
+		end
+	else
+		TweenService:Create(frame, TweenInfo.new(0.3), {Size = baseSizes.frame[currentSize]}):Play()
+		for _, child in pairs(frame:GetChildren()) do
+			if child ~= minimizeBtn then
+				child.Visible = true
+			end
+		end
+		TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = baseSizes.minimizeBtn[currentSize], Position = UDim2.new(1, -100 * sizeScales[currentSize], 0, 10)}):Play()
+		updateElementSizes()
+		if externalTweenEnabled then
+			externalTweenBtn.Visible = true
+			externalTweenBtn.Active = true
+		end
+	end
+end)
+
+-- Character Helpers
+local function getChar()
+	local char = player.Character
+	if not char then return nil, nil end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	return hum, root
+end
+
+-- Set Point Logic
+local setPart = nil
+local function setPoint()
+	local _, root = getChar()
+	if not root then return end
+	if setPart then setPart:Destroy() end
+
+	local p = Instance.new("Part")
+	p.Size = Vector3.new(2, 2, 2)
+	p.Anchored = true
+	p.CanCollide = false
+	p.Color = Color3.fromRGB(255, 0, 0)
+	p.Transparency = 0.4
+	p.Position = root.Position
+	p.Name = "SetPoint"
+	p.Parent = workspace
+	setPart = p
+end
+
+setBtn.MouseButton1Click:Connect(setPoint)
+
+-- Tween Logic (Shared for internal and external buttons)
+local tweening = false
+local function tweenToPoint()
+	if tweening or not setPart then return end
+	local _, root = getChar()
+	if not root then return end
+
+	local path = PathfindingService:CreatePath()
+	path:ComputeAsync(root.Position, setPart.Position + Vector3.new(0, 5, 0))
+	if path.Status ~= Enum.PathStatus.Success then return end
+
+	local points = path:GetWaypoints()
+	tweening = true
+	coroutine.wrap(function()
+		for i = 2, #points do
+			local nextPos = points[i].Position + Vector3.new(0, 5, 0)
+			local dist = (nextPos - root.Position).Magnitude
+			local t = TweenService:Create(root, TweenInfo.new(dist / tweenSpeed, Enum.EasingStyle.Linear), {
+				CFrame = CFrame.new(nextPos)
+			})
+			t:Play()
+			t.Completed:Wait()
+		end
+		tweening = false
+	end)()
+end
+
+tweenBtn.MouseButton1Click:Connect(tweenToPoint)
+externalTweenBtn.MouseButton1Click:Connect(tweenToPoint)
+
+-- Double Jump System
+doubleJumpBtn.MouseButton1Click:Connect(function()
+	doubleJumpEnabled = not doubleJumpEnabled
+	doubleJumpBtn.Text = "Double Jump: " .. (doubleJumpEnabled and "ON" or "OFF")
+	jumpCount = 0
+end)
+
+UserInputService.JumpRequest:Connect(function()
+	local hum, root = getChar()
+	if not hum or not root or floatEnabled then return end
+	if doubleJumpEnabled then
+		local currentTime = tick()
+		if currentTime - lastJumpTime < jumpCooldown then return end
+		if jumpCount < maxJumps then
+			if hum.FloorMaterial == Enum.Material.Air then
+				jumpCount += 1
+				hum.JumpHeight = 7.2
+				hum:ChangeState(Enum.HumanoidStateType.Jumping)
+				lastJumpTime = currentTime
+			else
+				jumpCount = 1
+				hum.JumpHeight = 7.2
+				hum:ChangeState(Enum.HumanoidStateType.Jumping)
+				lastJumpTime = currentTime
+			end
+		end
+	end
+end)
+
+player.CharacterAdded:Connect(function(char)
+	local hum = char:WaitForChild("Humanoid")
+	jumpCount = 0
+	hum.StateChanged:Connect(function(oldState, newState)
+		if newState == Enum.HumanoidStateType.Landed then
+			jumpCount = 0
+		end
+	end)
+end)
+
+-- Float System
+local floatEnabled = false
+local floatConn = nil
+local bodyVel = nil
+
+local function setFloat(state)
+	floatEnabled = state
+	floatBtn.Text = "Float: " .. (state and "ON" or "OFF")
+
+	local hum, root = getChar()
+	if not hum or not root then return end
+
+	if state then
+		if floatConn then floatConn:Disconnect() end
+		bodyVel = root:FindFirstChild("FloatBodyVelocity") or Instance.new("BodyVelocity")
+		bodyVel.Name = "FloatBodyVelocity"
+		bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+		bodyVel.Velocity = Vector3.zero
+		bodyVel.Parent = root
+
+		floatConn = RunService.Heartbeat:Connect(function()
+			local hum, r = getChar()
+			if not hum or not r then return end
+			local rayParams = RaycastParams.new()
+			rayParams.FilterDescendantsInstances = {player.Character}
+			rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+			local ray = workspace:Raycast(r.Position, Vector3.new(0, -20, 0), rayParams)
+			if ray then
+				local goalY = ray.Position.Y + floatHeight
+				local vY = (goalY - r.Position.Y) * floatSpeed
+
+				local moveVector = Vector3.zero
+				if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+					moveVector = hum.MoveDirection
+				else
+					if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector += Vector3.new(0, 0, -1) end
+					if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector += Vector3.new(0, 0, 1) end
+					if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector += Vector3.new(-1, 0, 0) end
+					if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector += Vector3.new(1, 0, 0) end
+				end
+
+				local moveVel
+				if moveVector.Magnitude > 0 then
+					moveVector = moveVector.Unit
+					local camCF = camera.CFrame
+					local horMove = (camCF.RightVector * moveVector.X + camCF.LookVector * moveVector.Z).Unit * floatSpeed * 5
+					moveVel = Vector3.new(horMove.X, vY, horMove.Z)
+				else
+					moveVel = Vector3.new(0, vY, 0)
+				end
+
+				bodyVel.Velocity = moveVel
+			else
+				bodyVel.Velocity = Vector3.new(0, floatSpeed * 0.5, 0)
+			end
+		end)
+	else
+		if floatConn then floatConn:Disconnect() end
+		if root and root:FindFirstChild("FloatBodyVelocity") then
+			root.FloatBodyVelocity:Destroy()
+		end
+		bodyVel = nil
+	end
+end
+
+floatBtn.MouseButton1Click:Connect(function()
+	setFloat(not floatEnabled)
+end)
