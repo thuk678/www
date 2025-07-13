@@ -17,6 +17,8 @@ local jumpCount = 0
 local maxJumps = 2
 local lastJumpTime = 0
 local jumpCooldown = 0.2
+local isMinimized = false
+local externalSetPointEnabled = false
 
 -- GUI
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
@@ -28,22 +30,47 @@ frame.Size = UDim2.new(0, 500, 0, 360) -- Default Normal size
 frame.Position = UDim2.new(0.5, -250, 0.5, -180)
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 frame.Active = true
-frame.Draggable = true -- Enable dragging for all devices
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 
--- Make GUI draggable on all devices
-local dragging, dragInput, dragStart, startPos
-UserInputService.InputBegan:Connect(function(input, processed)
-	if processed then return end
+-- External Set Point Button
+local externalSetPointBtn = Instance.new("TextButton", gui)
+externalSetPointBtn.Size = UDim2.new(0, 50, 0, 50)
+externalSetPointBtn.Position = UDim2.new(0.5, 0, 0.7, 0)
+externalSetPointBtn.Text = "Set"
+externalSetPointBtn.Font = Enum.Font.Code
+externalSetPointBtn.TextSize = 14
+externalSetPointBtn.TextColor3 = Color3.new(1, 1, 1)
+externalSetPointBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+externalSetPointBtn.Visible = false
+Instance.new("UICorner", externalSetPointBtn).CornerRadius = UDim.new(0, 10)
+externalSetPointBtn.MouseEnter:Connect(function()
+	TweenService:Create(externalSetPointBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 55, 0, 55), BackgroundColor3 = Color3.fromRGB(255, 80, 80)}):Play()
+end)
+externalSetPointBtn.MouseLeave:Connect(function()
+	TweenService:Create(externalSetPointBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 50, 0, 50), BackgroundColor3 = Color3.fromRGB(200, 60, 60)}):Play()
+end)
+
+-- Make GUI and external button draggable on all devices
+local dragging, dragInput, dragStart, startPos, draggedObject
+local function startDragging(input, obj)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		local pos = input.Position
-		local guiPos = frame.AbsolutePosition
-		local guiSize = frame.AbsoluteSize
+		local guiPos = obj.AbsolutePosition
+		local guiSize = obj.AbsoluteSize
 		if pos.X >= guiPos.X and pos.X <= guiPos.X + guiSize.X and pos.Y >= guiPos.Y and pos.Y <= guiPos.Y + guiSize.Y then
 			dragging = true
+			draggedObject = obj
 			dragStart = pos
-			startPos = frame.Position
+			startPos = obj.Position
 		end
+	end
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	startDragging(input, frame)
+	if externalSetPointEnabled and externalSetPointBtn.Visible then
+		startDragging(input, externalSetPointBtn)
 	end
 end)
 
@@ -51,13 +78,14 @@ UserInputService.InputChanged:Connect(function(input, processed)
 	if processed or not dragging then return end
 	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 		local delta = input.Position - dragStart
-		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		draggedObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 	end
 end)
 
 UserInputService.InputEnded:Connect(function(input, processed)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		dragging = false
+		draggedObject = nil
 	end
 end)
 
@@ -90,6 +118,23 @@ exitBtn.MouseEnter:Connect(function()
 end)
 exitBtn.MouseLeave:Connect(function()
 	TweenService:Create(exitBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 40, 0, 40), BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
+end)
+
+-- Minimize Button
+local minimizeBtn = Instance.new("TextButton", frame)
+minimizeBtn.Size = UDim2.new(0, 40, 0, 40)
+minimizeBtn.Position = UDim2.new(1, -100, 0, 10)
+minimizeBtn.Text = "-"
+minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
+minimizeBtn.Font = Enum.Font.Code
+minimizeBtn.TextSize = 18
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 10)
+minimizeBtn.MouseEnter:Connect(function()
+	TweenService:Create(minimizeBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 44, 0, 44), BackgroundColor3 = Color3.fromRGB(80, 80, 255)}):Play()
+end)
+minimizeBtn.MouseLeave:Connect(function()
+	TweenService:Create(minimizeBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 40, 0, 40), BackgroundColor3 = Color3.fromRGB(50, 50, 200)}):Play()
 end)
 
 -- Tabs
@@ -143,7 +188,7 @@ scrollFrame.Size = UDim2.new(1, 0, 1, 0)
 scrollFrame.Position = UDim2.new(0, 0, 0, 0)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.ScrollBarThickness = 10
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 300) -- Increased to accommodate size buttons
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 350) -- Increased for new button
 scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
 
 -- Tab switching
@@ -172,14 +217,68 @@ customTab.MouseButton1Click:Connect(function()
 	setActiveTab(customTab, customContainer)
 end)
 
--- Size Buttons in Customization Tab
+-- Size Scaling Logic
+local currentSize = "Normal"
+local sizeScales = {
+	Small = 0.6,
+	Normal = 1,
+	Big = 1.4
+}
+local baseSizes = {
+	frame = {Small = UDim2.new(0, 300, 0, 240), Normal = UDim2.new(0, 500, 0, 360), Big = UDim2.new(0, 700, 0, 480)},
+	buttons = {Small = UDim2.new(0, 132, 0, 24), Normal = UDim2.new(0, 220, 0, 40), Big = UDim2.new(0, 308, 0, 56)},
+	tabs = {Small = UDim2.new(0, 144, 0, 24), Normal = UDim2.new(0, 240, 0, 40), Big = UDim2.new(0, 336, 0, 56)},
+	inputs = {Small = UDim2.new(0, 72, 0, 24), Normal = UDim2.new(0, 120, 0, 40), Big = UDim2.new(0, 168, 0, 56)},
+	labels = {Small = UDim2.new(0, 108, 0, 24), Normal = UDim2.new(0, 180, 0, 40), Big = UDim2.new(0, 252, 0, 56)},
+	exitBtn = {Small = UDim2.new(0, 24, 0, 24), Normal = UDim2.new(0, 40, 0, 40), Big = UDim2.new(0, 56, 0, 56)},
+	minimizeBtn = {Small = UDim2.new(0, 24, 0, 24), Normal = UDim2.new(0, 40, 0, 40), Big = UDim2.new(0, 56, 0, 56)},
+	title = {Small = 16, Normal = 20, Big = 28},
+	buttonText = {Small = 12, Normal = 16, Big = 22},
+	tabText = {Small = 12, Normal = 16, Big = 22},
+	inputText = {Small = 10, Normal = 14, Big = 18}
+}
+
+local function updateElementSizes()
+	local scale = sizeScales[currentSize]
+	for _, btn in pairs(mainContainer:GetChildren()) do
+		if btn:IsA("TextButton") then
+			TweenService:Create(btn, TweenInfo.new(0.3), {Size = baseSizes.buttons[currentSize]}):Play()
+			btn.TextSize = baseSizes.buttonText[currentSize]
+		end
+	end
+	for _, tab in pairs(tabBar:GetChildren()) do
+		if tab:IsA("TextButton") then
+			TweenService:Create(tab, TweenInfo.new(0.3), {Size = baseSizes.tabs[currentSize], Position = UDim2.new(0, tab.Position.X.Offset * scale, 0, 0)}):Play()
+			tab.TextSize = baseSizes.tabText[currentSize]
+		end
+	end
+	for _, child in pairs(scrollFrame:GetChildren()) do
+		if child:IsA("TextBox") then
+			TweenService:Create(child, TweenInfo.new(0.3), {Size = baseSizes.inputs[currentSize], Position = UDim2.new(0, 210 * scale, 0, child.Position.Y.Offset)}):Play()
+			child.TextSize = baseSizes.inputText[currentSize]
+		elseif child:IsA("TextLabel") then
+			TweenService:Create(child, TweenInfo.new(0.3), {Size = baseSizes.labels[currentSize]}):Play()
+			child.TextSize = baseSizes.inputText[currentSize]
+		elseif child:IsA("TextButton") then
+			TweenService:Create(child, TweenInfo.new(0.3), {Size = baseSizes.buttons[currentSize]}):Play()
+			child.TextSize = baseSizes.buttonText[currentSize]
+		end
+	end
+	TweenService:Create(exitBtn, TweenInfo.new(0.3), {Size = baseSizes.exitBtn[currentSize], Position = UDim2.new(1, -50 * scale, 0, 10)}):Play()
+	exitBtn.TextSize = baseSizes.tabText[currentSize]
+	TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = baseSizes.minimizeBtn[currentSize], Position = UDim2.new(1, -100 * scale, 0, 10)}):Play()
+	minimizeBtn.TextSize = baseSizes.tabText[currentSize]
+	titleLabel.TextSize = baseSizes.title[currentSize]
+end
+
+-- Size and External Button in Customization Tab
 local function makeSizeBtn(text, y, size)
 	local btn = Instance.new("TextButton", scrollFrame)
-	btn.Size = UDim2.new(0, 120, 0, 40)
+	btn.Size = baseSizes.buttons[currentSize]
 	btn.Position = UDim2.new(0, 20, 0, y)
 	btn.Text = text
 	btn.Font = Enum.Font.Code
-	btn.TextSize = 14
+	btn.TextSize = baseSizes.buttonText[currentSize]
 	btn.TextColor3 = Color3.new(1, 1, 1)
 	btn.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
@@ -190,17 +289,34 @@ local function makeSizeBtn(text, y, size)
 		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}):Play()
 	end)
 	btn.MouseButton1Click:Connect(function()
-		local centerPos = frame.Position
-		if size == "Small" then
-			TweenService:Create(frame, TweenInfo.new(0.3), {Size = UDim2.new(0, 300, 0, 240), Position = centerPos}):Play()
-		elseif size == "Normal" then
-			TweenService:Create(frame, TweenInfo.new(0.3), {Size = UDim2.new(0, 500, 0, 360), Position = centerPos}):Play()
-		elseif size == "Big" then
-			TweenService:Create(frame, TweenInfo.new(0.3), {Size = UDim2.new(0, 700, 0, 480), Position = centerPos}):Play()
-		end
+		if isMinimized then return end
+		currentSize = size
+		TweenService:Create(frame, TweenInfo.new(0.3), {Size = baseSizes.frame[currentSize]}):Play()
+		updateElementSizes()
 	end)
 	return btn
 end
+
+local externalBtnToggle = Instance.new("TextButton", scrollFrame)
+externalBtnToggle.Size = baseSizes.buttons[currentSize]
+externalBtnToggle.Position = UDim2.new(0, 20, 0, 310)
+externalBtnToggle.Text = "External Set Point: OFF"
+externalBtnToggle.Font = Enum.Font.Code
+externalBtnToggle.TextSize = baseSizes.buttonText[currentSize]
+externalBtnToggle.TextColor3 = Color3.new(1, 1, 1)
+externalBtnToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+Instance.new("UICorner", externalBtnToggle).CornerRadius = UDim.new(0, 10)
+externalBtnToggle.MouseEnter:Connect(function()
+	TweenService:Create(externalBtnToggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80, 80, 110)}):Play()
+end)
+externalBtnToggle.MouseLeave:Connect(function()
+	TweenService:Create(externalBtnToggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}):Play()
+end)
+externalBtnToggle.MouseButton1Click:Connect(function()
+	externalSetPointEnabled = not externalSetPointEnabled
+	externalBtnToggle.Text = "External Set Point: " .. (externalSetPointEnabled and "ON" or "OFF")
+	externalSetPointBtn.Visible = externalSetPointEnabled
+end)
 
 makeSizeBtn("Small GUI", 160, "Small")
 makeSizeBtn("Normal GUI", 210, "Normal")
@@ -210,19 +326,19 @@ makeSizeBtn("Big GUI", 260, "Big")
 local function makeInput(labelText, y, default, callback)
 	local label = Instance.new("TextLabel", scrollFrame)
 	label.Position = UDim2.new(0, 20, 0, y)
-	label.Size = UDim2.new(0, 180, 0, 40)
+	label.Size = baseSizes.labels[currentSize]
 	label.Text = labelText
 	label.Font = Enum.Font.Code
-	label.TextSize = 14
+	label.TextSize = baseSizes.inputText[currentSize]
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.BackgroundTransparency = 1
 
 	local box = Instance.new("TextBox", scrollFrame)
 	box.Position = UDim2.new(0, 210, 0, y)
-	box.Size = UDim2.new(0, 120, 0, 40)
+	box.Size = baseSizes.inputs[currentSize]
 	box.Text = tostring(default)
 	box.Font = Enum.Font.Code
-	box.TextSize = 14
+	box.TextSize = baseSizes.inputText[currentSize]
 	box.TextColor3 = Color3.new(1, 1, 1)
 	box.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
 	box.ClearTextOnFocus = false
@@ -251,19 +367,19 @@ makeInput("Tween Speed", 110, tweenSpeed, function(v) tweenSpeed = v end)
 -- Buttons
 local function makeBtn(text, y, color)
 	local btn = Instance.new("TextButton", mainContainer)
-	btn.Size = UDim2.new(0, 220, 0, 40)
+	btn.Size = baseSizes.buttons[currentSize]
 	btn.Position = UDim2.new(0, 20, 0, y)
 	btn.Text = text
 	btn.Font = Enum.Font.Code
-	btn.TextSize = 16
+	btn.TextSize = baseSizes.buttonText[currentSize]
 	btn.TextColor3 = Color3.new(1, 1, 1)
 	btn.BackgroundColor3 = color
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
 	btn.MouseEnter:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.2), {Size = UDim2.new(0, 228, 0, 44), BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.1)}):Play()
+		TweenService:Create(btn, TweenInfo.new(0.2), {Size = UDim2.new(0, baseSizes.buttons[currentSize].X.Offset + 8, 0, baseSizes.buttons[currentSize].Y.Offset + 4), BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.1)}):Play()
 	end)
 	btn.MouseLeave:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.2), {Size = UDim2.new(0, 220, 0, 40), BackgroundColor3 = color}):Play()
+		TweenService:Create(btn, TweenInfo.new(0.2), {Size = baseSizes.buttons[currentSize], BackgroundColor3 = color}):Play()
 	end)
 	return btn
 end
@@ -273,6 +389,31 @@ local setBtn = makeBtn("Set Point", 60, Color3.fromRGB(200, 60, 60))
 local tweenBtn = makeBtn("Tween to Point", 110, Color3.fromRGB(60, 120, 180))
 local doubleJumpBtn = makeBtn("Double Jump: OFF", 160, Color3.fromRGB(120, 60, 180))
 
+-- Minimize Logic
+minimizeBtn.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	minimizeBtn.Text = isMinimized and "+" or "-"
+	if isMinimized then
+		TweenService:Create(frame, TweenInfo.new(0.3), {Size = UDim2.new(0, 50, 0, 50)}):Play()
+		for _, child in pairs(frame:GetChildren()) do
+			if child ~= minimizeBtn then
+				child.Visible = false
+			end
+		end
+		minimizeBtn.Position = UDim2.new(0, 5, 0, 5)
+		TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = UDim2.new(0, 40, 0, 40)}):Play()
+	else
+		TweenService:Create(frame, TweenInfo.new(0.3), {Size = baseSizes.frame[currentSize]}):Play()
+		for _, child in pairs(frame:GetChildren()) do
+			if child ~= minimizeBtn then
+				child.Visible = true
+			end
+		end
+		TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = baseSizes.minimizeBtn[currentSize], Position = UDim2.new(1, -100 * sizeScales[currentSize], 0, 10)}):Play()
+		updateElementSizes()
+	end
+end)
+
 -- Character Helpers
 local function getChar()
 	local char = player.Character
@@ -281,6 +422,28 @@ local function getChar()
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	return hum, root
 end
+
+-- Set Point Logic (Shared for internal and external buttons)
+local setPart = nil
+local function setPoint()
+	local _, root = getChar()
+	if not root then return end
+	if setPart then setPart:Destroy() end
+
+	local p = Instance.new("Part")
+	p.Size = Vector3.new(2, 2, 2)
+	p.Anchored = true
+	p.CanCollide = false
+	p.Color = Color3.fromRGB(255, 0, 0)
+	p.Transparency = 0.4
+	p.Position = root.Position
+	p.Name = "SetPoint"
+	p.Parent = workspace
+	setPart = p
+end
+
+setBtn.MouseButton1Click:Connect(setPoint)
+externalSetPointBtn.MouseButton1Click:Connect(setPoint)
 
 -- Double Jump System
 doubleJumpBtn.MouseButton1Click:Connect(function()
@@ -354,10 +517,8 @@ local function setFloat(state)
 
 				local moveVector = Vector3.zero
 				if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-					-- Use joystick input for mobile, normalized to avoid backwards movement
 					moveVector = hum.MoveDirection
 				else
-					-- Keyboard controls
 					if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector += Vector3.new(0, 0, -1) end
 					if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector += Vector3.new(0, 0, 1) end
 					if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector += Vector3.new(-1, 0, 0) end
@@ -368,7 +529,6 @@ local function setFloat(state)
 				if moveVector.Magnitude > 0 then
 					moveVector = moveVector.Unit
 					local camCF = camera.CFrame
-					-- Align movement with camera for both mobile and PC
 					local horMove = (camCF.RightVector * moveVector.X + camCF.LookVector * moveVector.Z).Unit * floatSpeed * 5
 					moveVel = Vector3.new(horMove.X, vY, horMove.Z)
 				else
@@ -391,25 +551,6 @@ end
 
 floatBtn.MouseButton1Click:Connect(function()
 	setFloat(not floatEnabled)
-end)
-
--- Set Point
-local setPart = nil
-setBtn.MouseButton1Click:Connect(function()
-	local _, root = getChar()
-	if not root then return end
-	if setPart then setPart:Destroy() end
-
-	local p = Instance.new("Part")
-	p.Size = Vector3.new(2, 2, 2)
-	p.Anchored = true
-	p.CanCollide = false
-	p.Color = Color3.fromRGB(255, 0, 0)
-	p.Transparency = 0.4
-	p.Position = root.Position
-	p.Name = "SetPoint"
-	p.Parent = workspace
-	setPart = p
 end)
 
 -- Tween System
