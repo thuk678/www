@@ -29,18 +29,20 @@ local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0, 500, 0, 360) -- Default Normal size
 frame.Position = UDim2.new(0, 10, 1, -370) -- Lower-left corner
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-frame.Active = true
+frame.Active = true -- Ensure frame is active for dragging on all devices
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 
 -- External Tween Button
 local externalTweenBtn = Instance.new("TextButton", gui)
 externalTweenBtn.Size = UDim2.new(0, 50, 0, 50)
-externalTweenBtn.Position = UDim2.new(1, -60, 0.5, -25) -- Right-middle side
+externalTweenBtn.Position = UDim2.new(1, -60, 0.5, -25) -- Right middle side, with offset for padding
 externalTweenBtn.Text = "Tween"
 externalTweenBtn.Font = Enum.Font.Code
 externalTweenBtn.TextSize = 14
 externalTweenBtn.TextColor3 = Color3.new(1, 1, 1)
 externalTweenBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 180)
+externalTweenBtn.Visible = false
+externalTweenBtn.Active = false -- Set active state based on externalTweenEnabled
 Instance.new("UICorner", externalTweenBtn).CornerRadius = UDim.new(0, 10)
 externalTweenBtn.MouseEnter:Connect(function()
 	TweenService:Create(externalTweenBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 55, 0, 55), BackgroundColor3 = Color3.fromRGB(80, 150, 220)}):Play()
@@ -59,6 +61,7 @@ minimizeBox.TextSize = 20
 minimizeBox.TextColor3 = Color3.new(1, 1, 1)
 minimizeBox.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
 minimizeBox.Visible = false
+minimizeBox.Active = false -- Set active state when visible
 Instance.new("UICorner", minimizeBox).CornerRadius = UDim.new(0, 10)
 minimizeBox.MouseEnter:Connect(function()
 	TweenService:Create(minimizeBox, TweenInfo.new(0.2), {Size = UDim2.new(0, 55, 0, 55), BackgroundColor3 = Color3.fromRGB(80, 80, 255)}):Play()
@@ -79,9 +82,7 @@ local function startDragging(input, obj)
 			draggedObject = obj
 			dragStart = pos
 			startPos = obj.Position
-			if obj == frame then
-				gui.Active = true -- Ensure GUI is active for dragging on mobile
-			end
+			-- gui.Active is already set on the frame, no need to set it on individual buttons
 		end
 	end
 end
@@ -89,10 +90,11 @@ end
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
 	startDragging(input, frame)
-	if externalTweenEnabled then
+	-- External tween button should be draggable even when GUI is minimized
+	if externalTweenEnabled and externalTweenBtn.Visible then
 		startDragging(input, externalTweenBtn)
 	end
-	if isMinimized then
+	if isMinimized then -- Only draggable if minimized
 		startDragging(input, minimizeBox)
 	end
 end)
@@ -166,10 +168,11 @@ tabBar.Size = UDim2.new(1, -20, 0, 40)
 tabBar.Position = UDim2.new(0, 10, 0, 60)
 tabBar.BackgroundTransparency = 1
 
-local function createTab(text, x)
+local function createTab(text, xOffset)
 	local tab = Instance.new("TextButton", tabBar)
-	tab.Size = UDim2.new(0, 240, 0, 40)
-	tab.Position = UDim2.new(0, x, 0, 0)
+	-- Tabs now use relative sizing for width and full height of the tab bar, with an offset for spacing
+	tab.Size = UDim2.new(0.5, -5, 1, 0) -- Half width of parent, minus 5px for spacing
+	tab.Position = UDim2.new(xOffset, (xOffset == 0 and 0 or 10), 0, 0) -- Position based on scale, with 10px offset for second tab
 	tab.Text = text
 	tab.Font = Enum.Font.Code
 	tab.TextSize = 16
@@ -189,8 +192,8 @@ local function createTab(text, x)
 	return tab
 end
 
-local mainTab = createTab("Main", 0)
-local customTab = createTab("Customization", 250)
+local mainTab = createTab("Main", 0) -- First tab starts at scale 0, offset 0
+local customTab = createTab("Customization", 0.5) -- Second tab starts at scale 0.5, offset 10 (for spacing)
 
 -- Containers
 local mainContainer = Instance.new("Frame", frame)
@@ -250,14 +253,14 @@ local sizeScales = {
 local baseSizes = {
 	frame = {Small = UDim2.new(0, 300, 0, 240), Normal = UDim2.new(0, 500, 0, 360), Big = UDim2.new(0, 700, 0, 480)},
 	buttons = {Small = UDim2.new(0, 132, 0, 24), Normal = UDim2.new(0, 220, 0, 40), Big = UDim2.new(0, 308, 0, 56)},
-	tabs = {Small = UDim2.new(0, 144, 0, 24), Normal = UDim2.new(0, 240, 0, 40), Big = UDim2.new(0, 336, 0, 56)},
+	-- Tabs now scale relatively, so we only need text size here
+	tabText = {Small = 12, Normal = 16, Big = 22},
 	inputs = {Small = UDim2.new(0, 72, 0, 24), Normal = UDim2.new(0, 120, 0, 40), Big = UDim2.new(0, 168, 0, 56)},
 	labels = {Small = UDim2.new(0, 108, 0, 24), Normal = UDim2.new(0, 180, 0, 40), Big = UDim2.new(0, 252, 0, 56)},
 	exitBtn = {Small = UDim2.new(0, 24, 0, 24), Normal = UDim2.new(0, 40, 0, 40), Big = UDim2.new(0, 56, 0, 56)},
 	minimizeBtn = {Small = UDim2.new(0, 24, 0, 24), Normal = UDim2.new(0, 40, 0, 40), Big = UDim2.new(0, 56, 0, 56)},
 	title = {Small = 16, Normal = 20, Big = 28},
 	buttonText = {Small = 12, Normal = 16, Big = 22},
-	tabText = {Small = 12, Normal = 16, Big = 22},
 	inputText = {Small = 10, Normal = 14, Big = 18}
 }
 
@@ -274,12 +277,9 @@ local function updateElementSizes()
 			btn.TextSize = baseSizes.buttonText[currentSize]
 		end
 	end
+	-- Tabs now adjust automatically due to relative sizing, only update text size
 	for _, tab in pairs(tabBar:GetChildren()) do
 		if tab:IsA("TextButton") then
-			local tabWidth = baseSizes.tabs[currentSize].X.Offset
-			local totalWidth = tabBar.Size.X.Offset
-			local xPos = (totalWidth - tabWidth) / 2 * (tab == mainTab and 0 or 1)
-			TweenService:Create(tab, TweenInfo.new(0.3), {Size = baseSizes.tabs[currentSize], Position = UDim2.new(0, xPos, 0, 0)}):Play()
 			tab.TextSize = baseSizes.tabText[currentSize]
 		end
 	end
@@ -347,7 +347,7 @@ externalBtnToggle.MouseButton1Click:Connect(function()
 	externalTweenEnabled = not externalTweenEnabled
 	externalBtnToggle.Text = "External Tween: " .. (externalTweenEnabled and "ON" or "OFF")
 	externalTweenBtn.Visible = externalTweenEnabled
-	externalTweenBtn.Active = externalTweenEnabled
+	externalTweenBtn.Active = externalTweenEnabled -- Ensure active for dragging
 end)
 
 makeSizeBtn("Small GUI", 160, "Small")
@@ -427,9 +427,12 @@ minimizeBtn.MouseButton1Click:Connect(function()
 	if isMinimized then
 		frame.Visible = false
 		minimizeBox.Visible = true
+		minimizeBox.Active = true -- Ensure minimize box is active for dragging
+		-- externalTweenBtn visibility is now independent of minimize state
 	else
 		frame.Visible = true
 		minimizeBox.Visible = false
+		minimizeBox.Active = false
 		TweenService:Create(frame, TweenInfo.new(0.3), {Size = baseSizes.frame[currentSize]}):Play()
 		for _, child in pairs(frame:GetChildren()) do
 			if child ~= minimizeBtn then
@@ -444,6 +447,7 @@ end)
 minimizeBox.MouseButton1Click:Connect(function()
 	isMinimized = false
 	minimizeBox.Visible = false
+	minimizeBox.Active = false
 	frame.Visible = true
 	TweenService:Create(frame, TweenInfo.new(0.3), {Size = baseSizes.frame[currentSize]}):Play()
 	for _, child in pairs(frame:GetChildren()) do
@@ -622,3 +626,7 @@ end
 floatBtn.MouseButton1Click:Connect(function()
 	setFloat(not floatEnabled)
 end)
+
+-- Initial setup
+setActiveTab(mainTab, mainContainer) -- Set initial active tab
+updateElementSizes() -- Apply initial sizing
