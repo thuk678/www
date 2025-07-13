@@ -50,6 +50,24 @@ externalTweenBtn.MouseLeave:Connect(function()
 	TweenService:Create(externalTweenBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 50, 0, 50), BackgroundColor3 = Color3.fromRGB(60, 120, 180)}):Play()
 end)
 
+-- Minimize Box
+local minimizeBox = Instance.new("TextButton", gui)
+minimizeBox.Size = UDim2.new(0, 50, 0, 50)
+minimizeBox.Position = UDim2.new(0, 10, 1, -60)
+minimizeBox.Text = "+"
+minimizeBox.Font = Enum.Font.Code
+minimizeBox.TextSize = 20
+minimizeBox.TextColor3 = Color3.new(1, 1, 1)
+minimizeBox.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+minimizeBox.Visible = false
+Instance.new("UICorner", minimizeBox).CornerRadius = UDim.new(0, 10)
+minimizeBox.MouseEnter:Connect(function()
+	TweenService:Create(minimizeBox, TweenInfo.new(0.2), {Size = UDim2.new(0, 55, 0, 55), BackgroundColor3 = Color3.fromRGB(80, 80, 255)}):Play()
+end)
+minimizeBox.MouseLeave:Connect(function()
+	TweenService:Create(minimizeBox, TweenInfo.new(0.2), {Size = UDim2.new(0, 50, 0, 50), BackgroundColor3 = Color3.fromRGB(50, 50, 200)}):Play()
+end)
+
 -- Make GUI and external button draggable on all devices
 local dragging, dragInput, dragStart, startPos, draggedObject
 local function startDragging(input, obj)
@@ -62,6 +80,9 @@ local function startDragging(input, obj)
 			draggedObject = obj
 			dragStart = pos
 			startPos = obj.Position
+			if obj == frame then
+				gui.Active = true -- Ensure GUI is active for dragging on mobile
+			end
 		end
 	end
 end
@@ -71,6 +92,9 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	startDragging(input, frame)
 	if externalTweenEnabled and externalTweenBtn.Visible then
 		startDragging(input, externalTweenBtn)
+	end
+	if isMinimized then
+		startDragging(input, minimizeBox)
 	end
 end)
 
@@ -241,7 +265,7 @@ local baseSizes = {
 local function updateElementSizes()
 	local scale = sizeScales[currentSize]
 	local frameWidth = baseSizes.frame[currentSize].X.Offset
-	local buttonSpacing = (frameWidth - 20) / 2 -- Center two buttons horizontally with 20px padding
+	local buttonSpacing = (frameWidth - 40) / 2 -- Adjusted for two buttons with 20px padding on each side
 	for _, btn in pairs(mainContainer:GetChildren()) do
 		if btn:IsA("TextButton") then
 			local yPos = btn.Position.Y.Offset
@@ -253,7 +277,10 @@ local function updateElementSizes()
 	end
 	for _, tab in pairs(tabBar:GetChildren()) do
 		if tab:IsA("TextButton") then
-			TweenService:Create(tab, TweenInfo.new(0.3), {Size = baseSizes.tabs[currentSize], Position = UDim2.new(0, tab.Position.X.Offset * scale, 0, 0)}):Play()
+			local tabWidth = baseSizes.tabs[currentSize].X.Offset
+			local totalWidth = tabBar.Size.X.Offset
+			local xPos = (totalWidth - tabWidth) / 2 * (tab == mainTab and 0 or 1)
+			TweenService:Create(tab, TweenInfo.new(0.3), {Size = baseSizes.tabs[currentSize], Position = UDim2.new(0, xPos, 0, 0)}):Play()
 			tab.TextSize = baseSizes.tabText[currentSize]
 		end
 	end
@@ -398,21 +425,16 @@ local doubleJumpBtn = makeBtn("Double Jump: OFF", 160, Color3.fromRGB(120, 60, 1
 -- Minimize Logic
 minimizeBtn.MouseButton1Click:Connect(function()
 	isMinimized = not isMinimized
-	minimizeBtn.Text = isMinimized and "+" or "-"
 	if isMinimized then
-		TweenService:Create(frame, TweenInfo.new(0.3), {Size = UDim2.new(0, 50, 0, 50)}):Play()
-		for _, child in pairs(frame:GetChildren()) do
-			if child ~= minimizeBtn then
-				child.Visible = false
-			end
-		end
-		minimizeBtn.Position = UDim2.new(0, 5, 0, 5)
-		TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = UDim2.new(0, 40, 0, 40)}):Play()
+		frame.Visible = false
+		minimizeBox.Visible = true
 		if externalTweenEnabled then
 			externalTweenBtn.Visible = false
 			externalTweenBtn.Active = false
 		end
 	else
+		frame.Visible = true
+		minimizeBox.Visible = false
 		TweenService:Create(frame, TweenInfo.new(0.3), {Size = baseSizes.frame[currentSize]}):Play()
 		for _, child in pairs(frame:GetChildren()) do
 			if child ~= minimizeBtn then
@@ -425,6 +447,24 @@ minimizeBtn.MouseButton1Click:Connect(function()
 			externalTweenBtn.Visible = true
 			externalTweenBtn.Active = true
 		end
+	end
+end)
+
+minimizeBox.MouseButton1Click:Connect(function()
+	isMinimized = false
+	minimizeBox.Visible = false
+	frame.Visible = true
+	TweenService:Create(frame, TweenInfo.new(0.3), {Size = baseSizes.frame[currentSize]}):Play()
+	for _, child in pairs(frame:GetChildren()) do
+		if child ~= minimizeBtn then
+			child.Visible = true
+		end
+	end
+	TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = baseSizes.minimizeBtn[currentSize], Position = UDim2.new(1, -100 * sizeScales[currentSize], 0, 10)}):Play()
+	updateElementSizes()
+	if externalTweenEnabled then
+		externalTweenBtn.Visible = true
+		externalTweenBtn.Active = true
 	end
 end)
 
@@ -458,7 +498,7 @@ end
 
 setBtn.MouseButton1Click:Connect(setPoint)
 
--- Tween Logic (Shared for internal and external buttons)
+-- Tween Logic
 local tweening = false
 local function tweenToPoint()
 	if tweening or not setPart then return end
