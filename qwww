@@ -18,7 +18,7 @@ local maxJumps = 2
 local lastJumpTime = 0
 local jumpCooldown = 0.2
 local isMinimized = false
-local externalSetPointEnabled = false
+local externalTweenEnabled = false
 
 -- GUI
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
@@ -27,27 +27,27 @@ gui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0, 500, 0, 360) -- Default Normal size
-frame.Position = UDim2.new(0.5, -250, 0.5, -180)
+frame.Position = UDim2.new(0, 10, 1, -370) -- Lower-left corner
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 frame.Active = true
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 
--- External Set Point Button
-local externalSetPointBtn = Instance.new("TextButton", gui)
-externalSetPointBtn.Size = UDim2.new(0, 50, 0, 50)
-externalSetPointBtn.Position = UDim2.new(0.5, 0, 0.7, 0)
-externalSetPointBtn.Text = "Set"
-externalSetPointBtn.Font = Enum.Font.Code
-externalSetPointBtn.TextSize = 14
-externalSetPointBtn.TextColor3 = Color3.new(1, 1, 1)
-externalSetPointBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
-externalSetPointBtn.Visible = false
-Instance.new("UICorner", externalSetPointBtn).CornerRadius = UDim.new(0, 10)
-externalSetPointBtn.MouseEnter:Connect(function()
-	TweenService:Create(externalSetPointBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 55, 0, 55), BackgroundColor3 = Color3.fromRGB(255, 80, 80)}):Play()
+-- External Tween Button
+local externalTweenBtn = Instance.new("TextButton", gui)
+externalTweenBtn.Size = UDim2.new(0, 50, 0, 50)
+externalTweenBtn.Position = UDim2.new(0.5, 0, 0.7, 0)
+externalTweenBtn.Text = "Tween"
+externalTweenBtn.Font = Enum.Font.Code
+externalTweenBtn.TextSize = 14
+externalTweenBtn.TextColor3 = Color3.new(1, 1, 1)
+externalTweenBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 180)
+externalTweenBtn.Visible = false
+Instance.new("UICorner", externalTweenBtn).CornerRadius = UDim.new(0, 10)
+externalTweenBtn.MouseEnter:Connect(function()
+	TweenService:Create(externalTweenBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 55, 0, 55), BackgroundColor3 = Color3.fromRGB(80, 150, 220)}):Play()
 end)
-externalSetPointBtn.MouseLeave:Connect(function()
-	TweenService:Create(externalSetPointBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 50, 0, 50), BackgroundColor3 = Color3.fromRGB(200, 60, 60)}):Play()
+externalTweenBtn.MouseLeave:Connect(function()
+	TweenService:Create(externalTweenBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 50, 0, 50), BackgroundColor3 = Color3.fromRGB(60, 120, 180)}):Play()
 end)
 
 -- Make GUI and external button draggable on all devices
@@ -69,8 +69,8 @@ end
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
 	startDragging(input, frame)
-	if externalSetPointEnabled and externalSetPointBtn.Visible then
-		startDragging(input, externalSetPointBtn)
+	if externalTweenEnabled and externalTweenBtn.Visible then
+		startDragging(input, externalTweenBtn)
 	end
 end)
 
@@ -188,7 +188,7 @@ scrollFrame.Size = UDim2.new(1, 0, 1, 0)
 scrollFrame.Position = UDim2.new(0, 0, 0, 0)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.ScrollBarThickness = 10
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 350) -- Increased for new button
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 350)
 scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
 
 -- Tab switching
@@ -240,9 +240,14 @@ local baseSizes = {
 
 local function updateElementSizes()
 	local scale = sizeScales[currentSize]
+	local frameWidth = baseSizes.frame[currentSize].X.Offset
+	local buttonSpacing = (frameWidth - 20) / 2 -- Center two buttons horizontally with 20px padding
 	for _, btn in pairs(mainContainer:GetChildren()) do
 		if btn:IsA("TextButton") then
-			TweenService:Create(btn, TweenInfo.new(0.3), {Size = baseSizes.buttons[currentSize]}):Play()
+			local yPos = btn.Position.Y.Offset
+			local btnIndex = ({floatBtn = 1, setBtn = 2, tweenBtn = 3, doubleJumpBtn = 4})[btn.Name]
+			local xPos = 20 + (btnIndex % 2 == 1 and 0 or buttonSpacing)
+			TweenService:Create(btn, TweenInfo.new(0.3), {Size = baseSizes.buttons[currentSize], Position = UDim2.new(0, xPos, 0, yPos)}):Play()
 			btn.TextSize = baseSizes.buttonText[currentSize]
 		end
 	end
@@ -300,7 +305,7 @@ end
 local externalBtnToggle = Instance.new("TextButton", scrollFrame)
 externalBtnToggle.Size = baseSizes.buttons[currentSize]
 externalBtnToggle.Position = UDim2.new(0, 20, 0, 310)
-externalBtnToggle.Text = "External Set Point: OFF"
+externalBtnToggle.Text = "External Tween: OFF"
 externalBtnToggle.Font = Enum.Font.Code
 externalBtnToggle.TextSize = baseSizes.buttonText[currentSize]
 externalBtnToggle.TextColor3 = Color3.new(1, 1, 1)
@@ -313,9 +318,10 @@ externalBtnToggle.MouseLeave:Connect(function()
 	TweenService:Create(externalBtnToggle, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}):Play()
 end)
 externalBtnToggle.MouseButton1Click:Connect(function()
-	externalSetPointEnabled = not externalSetPointEnabled
-	externalBtnToggle.Text = "External Set Point: " .. (externalSetPointEnabled and "ON" or "OFF")
-	externalSetPointBtn.Visible = externalSetPointEnabled
+	externalTweenEnabled = not externalTweenEnabled
+	externalBtnToggle.Text = "External Tween: " .. (externalTweenEnabled and "ON" or "OFF")
+	externalTweenBtn.Visible = externalTweenEnabled
+	externalTweenBtn.Active = externalTweenEnabled
 end)
 
 makeSizeBtn("Small GUI", 160, "Small")
@@ -402,6 +408,10 @@ minimizeBtn.MouseButton1Click:Connect(function()
 		end
 		minimizeBtn.Position = UDim2.new(0, 5, 0, 5)
 		TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = UDim2.new(0, 40, 0, 40)}):Play()
+		if externalTweenEnabled then
+			externalTweenBtn.Visible = false
+			externalTweenBtn.Active = false
+		end
 	else
 		TweenService:Create(frame, TweenInfo.new(0.3), {Size = baseSizes.frame[currentSize]}):Play()
 		for _, child in pairs(frame:GetChildren()) do
@@ -411,6 +421,10 @@ minimizeBtn.MouseButton1Click:Connect(function()
 		end
 		TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = baseSizes.minimizeBtn[currentSize], Position = UDim2.new(1, -100 * sizeScales[currentSize], 0, 10)}):Play()
 		updateElementSizes()
+		if externalTweenEnabled then
+			externalTweenBtn.Visible = true
+			externalTweenBtn.Active = true
+		end
 	end
 end)
 
@@ -423,7 +437,7 @@ local function getChar()
 	return hum, root
 end
 
--- Set Point Logic (Shared for internal and external buttons)
+-- Set Point Logic
 local setPart = nil
 local function setPoint()
 	local _, root = getChar()
@@ -443,7 +457,36 @@ local function setPoint()
 end
 
 setBtn.MouseButton1Click:Connect(setPoint)
-externalSetPointBtn.MouseButton1Click:Connect(setPoint)
+
+-- Tween Logic (Shared for internal and external buttons)
+local tweening = false
+local function tweenToPoint()
+	if tweening or not setPart then return end
+	local _, root = getChar()
+	if not root then return end
+
+	local path = PathfindingService:CreatePath()
+	path:ComputeAsync(root.Position, setPart.Position + Vector3.new(0, 5, 0))
+	if path.Status ~= Enum.PathStatus.Success then return end
+
+	local points = path:GetWaypoints()
+	tweening = true
+	coroutine.wrap(function()
+		for i = 2, #points do
+			local nextPos = points[i].Position + Vector3.new(0, 5, 0)
+			local dist = (nextPos - root.Position).Magnitude
+			local t = TweenService:Create(root, TweenInfo.new(dist / tweenSpeed, Enum.EasingStyle.Linear), {
+				CFrame = CFrame.new(nextPos)
+			})
+			t:Play()
+			t.Completed:Wait()
+		end
+		tweening = false
+	end)()
+end
+
+tweenBtn.MouseButton1Click:Connect(tweenToPoint)
+externalTweenBtn.MouseButton1Click:Connect(tweenToPoint)
 
 -- Double Jump System
 doubleJumpBtn.MouseButton1Click:Connect(function()
@@ -551,31 +594,4 @@ end
 
 floatBtn.MouseButton1Click:Connect(function()
 	setFloat(not floatEnabled)
-end)
-
--- Tween System
-local tweening = false
-tweenBtn.MouseButton1Click:Connect(function()
-	if tweening or not setPart then return end
-	local _, root = getChar()
-	if not root then return end
-
-	local path = PathfindingService:CreatePath()
-	path:ComputeAsync(root.Position, setPart.Position + Vector3.new(0, 5, 0))
-	if path.Status ~= Enum.PathStatus.Success then return end
-
-	local points = path:GetWaypoints()
-	tweening = true
-	coroutine.wrap(function()
-		for i = 2, #points do
-			local nextPos = points[i].Position + Vector3.new(0, 5, 0)
-			local dist = (nextPos - root.Position).Magnitude
-			local t = TweenService:Create(root, TweenInfo.new(dist / tweenSpeed, Enum.EasingStyle.Linear), {
-				CFrame = CFrame.new(nextPos)
-			})
-			t:Play()
-			t.Completed:Wait()
-		end
-		tweening = false
-	end)()
 end)
