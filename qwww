@@ -35,13 +35,12 @@ Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 -- External Tween Button
 local externalTweenBtn = Instance.new("TextButton", gui)
 externalTweenBtn.Size = UDim2.new(0, 50, 0, 50)
-externalTweenBtn.Position = UDim2.new(0.5, 0, 0.7, 0)
+externalTweenBtn.Position = UDim2.new(1, -60, 0.5, -25) -- Right-middle side
 externalTweenBtn.Text = "Tween"
 externalTweenBtn.Font = Enum.Font.Code
 externalTweenBtn.TextSize = 14
 externalTweenBtn.TextColor3 = Color3.new(1, 1, 1)
 externalTweenBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 180)
-externalTweenBtn.Visible = false
 Instance.new("UICorner", externalTweenBtn).CornerRadius = UDim.new(0, 10)
 externalTweenBtn.MouseEnter:Connect(function()
 	TweenService:Create(externalTweenBtn, TweenInfo.new(0.2), {Size = UDim2.new(0, 55, 0, 55), BackgroundColor3 = Color3.fromRGB(80, 150, 220)}):Play()
@@ -90,7 +89,7 @@ end
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
 	startDragging(input, frame)
-	if externalTweenEnabled and externalTweenBtn.Visible then
+	if externalTweenEnabled then
 		startDragging(input, externalTweenBtn)
 	end
 	if isMinimized then
@@ -428,10 +427,6 @@ minimizeBtn.MouseButton1Click:Connect(function()
 	if isMinimized then
 		frame.Visible = false
 		minimizeBox.Visible = true
-		if externalTweenEnabled then
-			externalTweenBtn.Visible = false
-			externalTweenBtn.Active = false
-		end
 	else
 		frame.Visible = true
 		minimizeBox.Visible = false
@@ -443,10 +438,6 @@ minimizeBtn.MouseButton1Click:Connect(function()
 		end
 		TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = baseSizes.minimizeBtn[currentSize], Position = UDim2.new(1, -100 * sizeScales[currentSize], 0, 10)}):Play()
 		updateElementSizes()
-		if externalTweenEnabled then
-			externalTweenBtn.Visible = true
-			externalTweenBtn.Active = true
-		end
 	end
 end)
 
@@ -462,10 +453,6 @@ minimizeBox.MouseButton1Click:Connect(function()
 	end
 	TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {Size = baseSizes.minimizeBtn[currentSize], Position = UDim2.new(1, -100 * sizeScales[currentSize], 0, 10)}):Play()
 	updateElementSizes()
-	if externalTweenEnabled then
-		externalTweenBtn.Visible = true
-		externalTweenBtn.Active = true
-	end
 end)
 
 -- Character Helpers
